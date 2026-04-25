@@ -54,6 +54,8 @@ public:
         {
             totalWrongNotes++;
             lastWrongTime = std::chrono::steady_clock::now();
+            for (int n = 0; n < count; ++n)
+                noteHit[(size_t) currentNoteIndex][(size_t) n] = false;
             return false;
         }
 
