@@ -1,4 +1,4 @@
-# Piano Learner AU
+# Daniels Piano Helper
 
 A Logic Pro AU (Audio Unit) MIDI plugin for practicing piano note recognition and sight reading.
 
@@ -20,10 +20,21 @@ Read notes from a 4/4 staff and play them in order. Generates random bars of nat
 - **Exact or "Up to" mode** — exact always shows N notes per beat; "up to" randomly varies between 1 and N
 - **Complementary note selection** — multi-note beats use consonant intervals (3rds, 4ths, 5ths, 6ths) so chords sound musical
 - **Configurable max spread** — control the widest interval between notes in a chord (minor 3rd through octave)
+- **Wrong note resets the beat** — miss one note in a chord and you replay the whole chord
 - **Auto-advance** — the next bar generates automatically after completing the current one
 - **Wrong note flash** — visual feedback on mistakes
 
-## Building
+## Installation
+
+Download the latest `.zip` from [Releases](https://github.com/Danielvandervelden/logic-piano-learner-au/releases), unzip, and copy `Daniels Piano Helper.component` to:
+
+```
+~/Library/Audio/Plug-Ins/Components/
+```
+
+Restart Logic Pro, then add "Daniels Piano Helper" as a MIDI effect on a software instrument track.
+
+## Building from Source
 
 Requires CMake 3.22+ and a C++17 compiler. JUCE is included as a git submodule.
 
@@ -35,13 +46,6 @@ cmake --build .
 ```
 
 The AU plugin is automatically copied to `~/Library/Audio/Plug-Ins/Components/` after building.
-
-## Usage
-
-1. Open Logic Pro
-2. Add the "Piano Speedrun" MIDI effect to a software instrument track
-3. Switch between SpeedRun and Sight Read tabs
-4. Configure your settings and press START
 
 ## Tech
 

@@ -19,7 +19,7 @@ static constexpr int kTabBarH  = 45;
 static constexpr int kButtonH  = 60;
 
 //==============================================================================
-PianoSpeedrunEditor::PianoSpeedrunEditor (PianoSpeedrunProcessor& p)
+DanielsPianoHelperEditor::DanielsPianoHelperEditor (DanielsPianoHelperProcessor& p)
     : AudioProcessorEditor (&p)
 {
     setSize (420, 600);
@@ -155,13 +155,13 @@ PianoSpeedrunEditor::PianoSpeedrunEditor (PianoSpeedrunProcessor& p)
     switchTab (Tab::SpeedRun);
 }
 
-PianoSpeedrunEditor::~PianoSpeedrunEditor()
+DanielsPianoHelperEditor::~DanielsPianoHelperEditor()
 {
     stopTimer();
 }
 
 //==============================================================================
-void PianoSpeedrunEditor::switchTab (Tab tab)
+void DanielsPianoHelperEditor::switchTab (Tab tab)
 {
     if (currentTab != tab)
     {
@@ -209,7 +209,7 @@ void PianoSpeedrunEditor::switchTab (Tab tab)
 }
 
 //==============================================================================
-void PianoSpeedrunEditor::timerCallback()
+void DanielsPianoHelperEditor::timerCallback()
 {
     if (currentTab == Tab::SpeedRun)
     {
@@ -229,7 +229,7 @@ void PianoSpeedrunEditor::timerCallback()
 }
 
 //==============================================================================
-void PianoSpeedrunEditor::paint (juce::Graphics& g)
+void DanielsPianoHelperEditor::paint (juce::Graphics& g)
 {
     g.fillAll (colours::background);
 
@@ -244,13 +244,13 @@ void PianoSpeedrunEditor::paint (juce::Graphics& g)
 }
 
 //==============================================================================
-void PianoSpeedrunEditor::paintSpeedRun (juce::Graphics& g, juce::Rectangle<int> area)
+void DanielsPianoHelperEditor::paintSpeedRun (juce::Graphics& g, juce::Rectangle<int> area)
 {
     auto& trainer = getProcessor().trainer;
 
     g.setColour (colours::text);
     g.setFont (juce::Font (juce::FontOptions (24.0f).withStyle ("Bold")));
-    g.drawText ("PIANO SPEEDRUN", area.removeFromTop (50), juce::Justification::centred);
+    g.drawText ("SPEEDRUN", area.removeFromTop (50), juce::Justification::centred);
 
     area.removeFromTop (40); // octave config row
 
@@ -394,7 +394,7 @@ void PianoSpeedrunEditor::paintSpeedRun (juce::Graphics& g, juce::Rectangle<int>
 }
 
 //==============================================================================
-void PianoSpeedrunEditor::paintSightRead (juce::Graphics& g, juce::Rectangle<int> area)
+void DanielsPianoHelperEditor::paintSightRead (juce::Graphics& g, juce::Rectangle<int> area)
 {
     auto& trainer = getProcessor().sheetTrainer;
 
@@ -457,7 +457,7 @@ void PianoSpeedrunEditor::paintSightRead (juce::Graphics& g, juce::Rectangle<int
 }
 
 //==============================================================================
-void PianoSpeedrunEditor::drawStaff (juce::Graphics& g, juce::Rectangle<float> bounds,
+void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<float> bounds,
                                       const std::array<std::array<int, 3>, 4>* notes,
                                       const std::array<bool, 4>* completed,
                                       const std::array<std::array<bool, 3>, 4>* noteHit,
@@ -621,7 +621,7 @@ void PianoSpeedrunEditor::drawStaff (juce::Graphics& g, juce::Rectangle<float> b
 }
 
 //==============================================================================
-void PianoSpeedrunEditor::resized()
+void DanielsPianoHelperEditor::resized()
 {
     auto area = getLocalBounds();
 
@@ -672,7 +672,7 @@ void PianoSpeedrunEditor::resized()
 }
 
 //==============================================================================
-void PianoSpeedrunEditor::exportSession()
+void DanielsPianoHelperEditor::exportSession()
 {
     auto results = getProcessor().trainer.getResults();
     if (results.empty())
@@ -681,7 +681,7 @@ void PianoSpeedrunEditor::exportSession()
     auto chooser = std::make_shared<juce::FileChooser> (
         "Export Session",
         juce::File::getSpecialLocation (juce::File::userDesktopDirectory)
-            .getChildFile ("piano-speedrun-session.csv"),
+            .getChildFile ("daniels-piano-helper-session.csv"),
         "*.csv");
 
     chooser->launchAsync (

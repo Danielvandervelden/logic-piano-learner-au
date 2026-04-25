@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
-project(PianoSpeedrun VERSION 1.0.0)
+project(DanielsPianoHelper VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
 
 add_subdirectory(JUCE)
 
-juce_add_plugin(PianoSpeedrun
+juce_add_plugin(DanielsPianoHelper
     COMPANY_NAME "DanielVDV"
     IS_MIDI_EFFECT TRUE
     NEEDS_MIDI_INPUT TRUE
@@ -16,19 +16,19 @@ juce_add_plugin(PianoSpeedrun
     PLUGIN_MANUFACTURER_CODE Dvdv
     PLUGIN_CODE Pspr
     FORMATS AU
-    PRODUCT_NAME "Piano Speedrun"
+    PRODUCT_NAME "Daniels Piano Helper"
     COPY_PLUGIN_AFTER_BUILD TRUE
 )
 
-juce_generate_juce_header(PianoSpeedrun)
+juce_generate_juce_header(DanielsPianoHelper)
 
-target_sources(PianoSpeedrun
+target_sources(DanielsPianoHelper
     PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
 )
 
-target_compile_definitions(PianoSpeedrun
+target_compile_definitions(DanielsPianoHelper
     PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
@@ -36,7 +36,7 @@ target_compile_definitions(PianoSpeedrun
         JUCE_DISPLAY_SPLASH_SCREEN=0
 )
 
-target_link_libraries(PianoSpeedrun
+target_link_libraries(DanielsPianoHelper
     PRIVATE
         juce::juce_audio_utils
         juce::juce_audio_processors

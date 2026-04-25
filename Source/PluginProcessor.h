@@ -3,11 +3,11 @@
 #include "NoteTrainer.h"
 #include "SheetTrainer.h"
 
-class PianoSpeedrunProcessor : public juce::AudioProcessor
+class DanielsPianoHelperProcessor : public juce::AudioProcessor
 {
 public:
-    PianoSpeedrunProcessor();
-    ~PianoSpeedrunProcessor() override;
+    DanielsPianoHelperProcessor();
+    ~DanielsPianoHelperProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;

@@ -1,28 +1,28 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-PianoSpeedrunProcessor::PianoSpeedrunProcessor()
+DanielsPianoHelperProcessor::DanielsPianoHelperProcessor()
     : AudioProcessor (BusesProperties())
 {
 }
 
-PianoSpeedrunProcessor::~PianoSpeedrunProcessor() {}
+DanielsPianoHelperProcessor::~DanielsPianoHelperProcessor() {}
 
-const juce::String PianoSpeedrunProcessor::getName() const { return "Piano Speedrun"; }
-bool PianoSpeedrunProcessor::acceptsMidi() const { return true; }
-bool PianoSpeedrunProcessor::producesMidi() const { return true; }
-bool PianoSpeedrunProcessor::isMidiEffect() const { return true; }
-double PianoSpeedrunProcessor::getTailLengthSeconds() const { return 0.0; }
-int PianoSpeedrunProcessor::getNumPrograms() { return 1; }
-int PianoSpeedrunProcessor::getCurrentProgram() { return 0; }
-void PianoSpeedrunProcessor::setCurrentProgram (int) {}
-const juce::String PianoSpeedrunProcessor::getProgramName (int) { return {}; }
-void PianoSpeedrunProcessor::changeProgramName (int, const juce::String&) {}
+const juce::String DanielsPianoHelperProcessor::getName() const { return "Daniels Piano Helper"; }
+bool DanielsPianoHelperProcessor::acceptsMidi() const { return true; }
+bool DanielsPianoHelperProcessor::producesMidi() const { return true; }
+bool DanielsPianoHelperProcessor::isMidiEffect() const { return true; }
+double DanielsPianoHelperProcessor::getTailLengthSeconds() const { return 0.0; }
+int DanielsPianoHelperProcessor::getNumPrograms() { return 1; }
+int DanielsPianoHelperProcessor::getCurrentProgram() { return 0; }
+void DanielsPianoHelperProcessor::setCurrentProgram (int) {}
+const juce::String DanielsPianoHelperProcessor::getProgramName (int) { return {}; }
+void DanielsPianoHelperProcessor::changeProgramName (int, const juce::String&) {}
 
-void PianoSpeedrunProcessor::prepareToPlay (double, int) {}
-void PianoSpeedrunProcessor::releaseResources() {}
+void DanielsPianoHelperProcessor::prepareToPlay (double, int) {}
+void DanielsPianoHelperProcessor::releaseResources() {}
 
-void PianoSpeedrunProcessor::processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer& midi)
+void DanielsPianoHelperProcessor::processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer& midi)
 {
     for (const auto metadata : midi)
     {
@@ -35,17 +35,17 @@ void PianoSpeedrunProcessor::processBlock (juce::AudioBuffer<float>&, juce::Midi
     }
 }
 
-juce::AudioProcessorEditor* PianoSpeedrunProcessor::createEditor()
+juce::AudioProcessorEditor* DanielsPianoHelperProcessor::createEditor()
 {
-    return new PianoSpeedrunEditor (*this);
+    return new DanielsPianoHelperEditor (*this);
 }
 
-bool PianoSpeedrunProcessor::hasEditor() const { return true; }
+bool DanielsPianoHelperProcessor::hasEditor() const { return true; }
 
-void PianoSpeedrunProcessor::getStateInformation (juce::MemoryBlock&) {}
-void PianoSpeedrunProcessor::setStateInformation (const void*, int) {}
+void DanielsPianoHelperProcessor::getStateInformation (juce::MemoryBlock&) {}
+void DanielsPianoHelperProcessor::setStateInformation (const void*, int) {}
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new PianoSpeedrunProcessor();
+    return new DanielsPianoHelperProcessor();
 }

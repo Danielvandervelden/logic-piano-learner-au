@@ -1,12 +1,12 @@
 #pragma once
 #include "PluginProcessor.h"
 
-class PianoSpeedrunEditor : public juce::AudioProcessorEditor,
+class DanielsPianoHelperEditor : public juce::AudioProcessorEditor,
                             private juce::Timer
 {
 public:
-    explicit PianoSpeedrunEditor (PianoSpeedrunProcessor&);
-    ~PianoSpeedrunEditor() override;
+    explicit DanielsPianoHelperEditor (DanielsPianoHelperProcessor&);
+    ~DanielsPianoHelperEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -25,9 +25,9 @@ private:
                     const std::array<std::array<bool, 3>, 4>*,
                     const std::array<int, 4>*, int);
 
-    PianoSpeedrunProcessor& getProcessor()
+    DanielsPianoHelperProcessor& getProcessor()
     {
-        return static_cast<PianoSpeedrunProcessor&> (processor);
+        return static_cast<DanielsPianoHelperProcessor&> (processor);
     }
 
     Tab currentTab = Tab::SpeedRun;
@@ -49,5 +49,5 @@ private:
     juce::Label      spreadLabel    { {}, "Spread:" };
     bool sheetRunning = false;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PianoSpeedrunEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DanielsPianoHelperEditor)
 };
