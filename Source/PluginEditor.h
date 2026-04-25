@@ -23,7 +23,7 @@ private:
                     const std::array<std::array<int, 3>, 4>*,
                     const std::array<bool, 4>*,
                     const std::array<std::array<bool, 3>, 4>*,
-                    int, int);
+                    const std::array<int, 4>*, int);
 
     PianoSpeedrunProcessor& getProcessor()
     {
@@ -44,6 +44,7 @@ private:
     juce::TextButton sheetStartStop { "START" };
     juce::ComboBox   notesSelector;
     juce::Label      notesLabel     { {}, "Notes:" };
+    juce::ComboBox   modeSelector;
     juce::ComboBox   spreadSelector;
     juce::Label      spreadLabel    { {}, "Spread:" };
     bool sheetRunning = false;

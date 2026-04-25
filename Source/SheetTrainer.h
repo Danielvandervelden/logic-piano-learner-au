@@ -10,11 +10,12 @@ public:
     static constexpr int kNotesPerBar = 4;
     static constexpr int kMaxNotesPerBeat = 3;
 
-    void start (int numNotesPerBeat = 1, int spreadSemitones = 12)
+    void start (int numNotesPerBeat = 1, int spreadSemitones = 12, bool exact = true)
     {
         juce::SpinLock::ScopedLockType sl (lock);
         notesPerBeat = juce::jlimit (1, 3, numNotesPerBeat);
         maxSpread = juce::jlimit (3, 21, spreadSemitones);
+        exactMode = exact;
         state = State::Active;
         barsCompleted = 0;
         totalWrongNotes = 0;
@@ -34,8 +35,10 @@ public:
         if (state != State::Active || barComplete)
             return false;
 
+        int count = beatNoteCount[(size_t) currentNoteIndex];
+
         bool found = false;
-        for (int n = 0; n < notesPerBeat; ++n)
+        for (int n = 0; n < count; ++n)
         {
             if (midiNote == barNotes[(size_t) currentNoteIndex][(size_t) n]
                 && ! noteHit[(size_t) currentNoteIndex][(size_t) n])
@@ -55,7 +58,7 @@ public:
         }
 
         bool beatDone = true;
-        for (int n = 0; n < notesPerBeat; ++n)
+        for (int n = 0; n < count; ++n)
             if (! noteHit[(size_t) currentNoteIndex][(size_t) n])
             {
                 beatDone = false;
@@ -121,6 +124,12 @@ public:
     {
         juce::SpinLock::ScopedLockType sl (lock);
         return notesPerBeat;
+    }
+
+    std::array<int, kNotesPerBar> getBeatNoteCount() const
+    {
+        juce::SpinLock::ScopedLockType sl (lock);
+        return beatNoteCount;
     }
 
     int getCurrentNoteIndex() const
@@ -198,13 +207,19 @@ private:
 
         for (int i = 0; i < kNotesPerBar; ++i)
         {
-            if (notesPerBeat == 1)
+            int count = notesPerBeat;
+            if (! exactMode && notesPerBeat > 1)
+                count = 1 + random.nextInt (notesPerBeat);
+
+            beatNoteCount[(size_t) i] = count;
+
+            if (count == 1)
             {
                 barNotes[(size_t) i][0] = pool[(size_t) random.nextInt (poolSize)];
             }
             else
             {
-                pickChord (i, pool, poolSize);
+                pickChord (i, pool, poolSize, count);
             }
 
             completed[(size_t) i] = false;
@@ -214,11 +229,11 @@ private:
         currentNoteIndex = 0;
     }
 
-    void pickChord (int beatIndex, const int* pool, int poolSize)
+    void pickChord (int beatIndex, const int* pool, int poolSize, int count)
     {
         barNotes[(size_t) beatIndex][0] = pool[(size_t) random.nextInt (poolSize)];
 
-        for (int n = 1; n < notesPerBeat; ++n)
+        for (int n = 1; n < count; ++n)
         {
             int candidates[13];
             int candidateCount = 0;
@@ -265,8 +280,8 @@ private:
         }
 
         // sort notes low to high for display
-        for (int a = 0; a < notesPerBeat - 1; ++a)
-            for (int b = a + 1; b < notesPerBeat; ++b)
+        for (int a = 0; a < count - 1; ++a)
+            for (int b = a + 1; b < count; ++b)
                 if (barNotes[(size_t) beatIndex][(size_t) a]
                     > barNotes[(size_t) beatIndex][(size_t) b])
                     std::swap (barNotes[(size_t) beatIndex][(size_t) a],
@@ -278,8 +293,10 @@ private:
     std::array<std::array<int, kMaxNotesPerBeat>, kNotesPerBar> barNotes {};
     std::array<std::array<bool, kMaxNotesPerBeat>, kNotesPerBar> noteHit {};
     std::array<bool, kNotesPerBar> completed {};
+    std::array<int, kNotesPerBar> beatNoteCount {};
     int notesPerBeat = 1;
     int maxSpread = 12;
+    bool exactMode = true;
     int currentNoteIndex = 0;
     int barsCompleted = 0;
     int totalWrongNotes = 0;

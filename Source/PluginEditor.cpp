@@ -93,12 +93,21 @@ PianoSpeedrunEditor::PianoSpeedrunEditor (PianoSpeedrunProcessor& p)
     {
         bool single = (notesSelector.getSelectedId() == 1);
         bool sight = (currentTab == Tab::SightRead);
+        modeSelector.setVisible (sight && ! single);
         spreadLabel.setVisible (sight && ! single);
         spreadSelector.setVisible (sight && ! single);
         resized();
         repaint();
     };
     addAndMakeVisible (notesSelector);
+
+    modeSelector.addItem ("Exact", 1);
+    modeSelector.addItem ("Up to", 2);
+    modeSelector.setSelectedId (1);
+    modeSelector.setColour (juce::ComboBox::backgroundColourId, colours::surface);
+    modeSelector.setColour (juce::ComboBox::textColourId, colours::text);
+    modeSelector.setColour (juce::ComboBox::outlineColourId, colours::accent);
+    addAndMakeVisible (modeSelector);
 
     spreadLabel.setColour (juce::Label::textColourId, colours::text);
     spreadLabel.setJustificationType (juce::Justification::centredRight);
@@ -132,7 +141,8 @@ PianoSpeedrunEditor::PianoSpeedrunEditor (PianoSpeedrunProcessor& p)
         else
         {
             proc.sheetTrainer.start (notesSelector.getSelectedId(),
-                                     spreadSelector.getSelectedId());
+                                     spreadSelector.getSelectedId(),
+                                     modeSelector.getSelectedId() == 1);
             sheetRunning = true;
             sheetStartStop.setButtonText ("STOP");
             sheetStartStop.setColour (juce::TextButton::buttonColourId, colours::stopBg);
@@ -189,6 +199,7 @@ void PianoSpeedrunEditor::switchTab (Tab tab)
 
     notesLabel.setVisible (! sr);
     notesSelector.setVisible (! sr);
+    modeSelector.setVisible (! sr && ! single);
     spreadLabel.setVisible (! sr && ! single);
     spreadSelector.setVisible (! sr && ! single);
     sheetStartStop.setVisible (! sr);
@@ -400,11 +411,11 @@ void PianoSpeedrunEditor::paintSightRead (juce::Graphics& g, juce::Rectangle<int
 
     if (sheetRunning)
     {
-        auto notes = trainer.getBarNotes();
-        auto done  = trainer.getCompleted();
-        auto hits  = trainer.getNoteHit();
-        int idx    = trainer.getCurrentNoteIndex();
-        int npb    = trainer.getNotesPerBeat();
+        auto notes  = trainer.getBarNotes();
+        auto done   = trainer.getCompleted();
+        auto hits   = trainer.getNoteHit();
+        auto counts = trainer.getBeatNoteCount();
+        int idx     = trainer.getCurrentNoteIndex();
 
         auto now = std::chrono::steady_clock::now();
         auto msSinceWrong = std::chrono::duration_cast<std::chrono::milliseconds> (
@@ -416,11 +427,11 @@ void PianoSpeedrunEditor::paintSightRead (juce::Graphics& g, juce::Rectangle<int
             g.fillRoundedRectangle (staffRect.toFloat().expanded (6), 10.0f);
         }
 
-        drawStaff (g, staffRect.toFloat(), &notes, &done, &hits, npb, idx);
+        drawStaff (g, staffRect.toFloat(), &notes, &done, &hits, &counts, idx);
     }
     else
     {
-        drawStaff (g, staffRect.toFloat(), nullptr, nullptr, nullptr, 1, -1);
+        drawStaff (g, staffRect.toFloat(), nullptr, nullptr, nullptr, nullptr, -1);
 
         g.setColour (colours::textDim);
         g.setFont (juce::Font (juce::FontOptions (22.0f)));
@@ -450,7 +461,8 @@ void PianoSpeedrunEditor::drawStaff (juce::Graphics& g, juce::Rectangle<float> b
                                       const std::array<std::array<int, 3>, 4>* notes,
                                       const std::array<bool, 4>* completed,
                                       const std::array<std::array<bool, 3>, 4>* noteHit,
-                                      int npb, int currentIndex)
+                                      const std::array<int, 4>* beatCounts,
+                                      int currentIndex)
 {
     const float lineSpacing = 14.0f;
     const float staffHeight = 4.0f * lineSpacing;
@@ -504,11 +516,12 @@ void PianoSpeedrunEditor::drawStaff (juce::Graphics& g, juce::Rectangle<float> b
     for (int i = 0; i < 4; ++i)
     {
         float cx = notesStart + noteGap * ((float) i + 0.5f);
+        int bpc = beatCounts != nullptr ? (*beatCounts)[(size_t) i] : 1;
 
         // collect staff positions for all notes in this beat
         int spArr[3] {};
         int spMin = 999, spMax = -999;
-        for (int n = 0; n < npb; ++n)
+        for (int n = 0; n < bpc; ++n)
         {
             spArr[n] = SheetTrainer::staffPosition ((*notes)[(size_t) i][(size_t) n]);
             spMin = juce::jmin (spMin, spArr[n]);
@@ -538,7 +551,7 @@ void PianoSpeedrunEditor::drawStaff (juce::Graphics& g, juce::Rectangle<float> b
         }
 
         // draw noteheads with per-note coloring
-        for (int n = 0; n < npb; ++n)
+        for (int n = 0; n < bpc; ++n)
         {
             juce::Colour col;
             if ((*completed)[(size_t) i])
@@ -565,7 +578,7 @@ void PianoSpeedrunEditor::drawStaff (juce::Graphics& g, juce::Rectangle<float> b
             stemCol = colours::text.withAlpha (0.55f);
         g.setColour (stemCol);
 
-        if (npb == 1)
+        if (bpc == 1)
         {
             // single note — original stem logic
             float cy = bottomLineY - (float) spArr[0] * (lineSpacing / 2.0f);
@@ -587,9 +600,9 @@ void PianoSpeedrunEditor::drawStaff (juce::Graphics& g, juce::Rectangle<float> b
             float cyHigh = bottomLineY - (float) spMax * (lineSpacing / 2.0f);
 
             float avgSp = 0.0f;
-            for (int n = 0; n < npb; ++n)
+            for (int n = 0; n < bpc; ++n)
                 avgSp += (float) spArr[n];
-            avgSp /= (float) npb;
+            avgSp /= (float) bpc;
 
             if (avgSp < 4.0f)
             {
@@ -639,17 +652,19 @@ void PianoSpeedrunEditor::resized()
     {
         // skip title area (painted), then config row
         area.removeFromTop (50);
-        auto config = area.removeFromTop (40).reduced (40, 5);
+        auto config = area.removeFromTop (40).reduced (10, 5);
         notesLabel.setBounds (config.removeFromLeft (48));
-        config.removeFromLeft (5);
-        notesSelector.setBounds (config.removeFromLeft (45));
+        config.removeFromLeft (4);
+        notesSelector.setBounds (config.removeFromLeft (55));
 
         if (notesSelector.getSelectedId() > 1)
         {
-            config.removeFromLeft (15);
-            spreadLabel.setBounds (config.removeFromLeft (55));
-            config.removeFromLeft (5);
-            spreadSelector.setBounds (config.removeFromLeft (55));
+            config.removeFromLeft (6);
+            modeSelector.setBounds (config.removeFromLeft (72));
+            config.removeFromLeft (10);
+            spreadLabel.setBounds (config.removeFromLeft (50));
+            config.removeFromLeft (4);
+            spreadSelector.setBounds (config.removeFromLeft (65));
         }
 
         sheetStartStop.setBounds (buttons.reduced ((buttons.getWidth() - 140) / 2, 0));
