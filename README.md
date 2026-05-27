@@ -16,6 +16,7 @@ Rapid-fire note recognition trainer. A random note name appears on screen and yo
 ### Sight Read Mode
 Read notes from a 4/4 staff and play them in order. Generates random bars of natural notes in the treble clef range (C4–A5).
 
+- **1–4 bars** — choose how many bars to display and practice at once; the window resizes to fit
 - **1, 2, or 3 notes per beat** — practice single notes, intervals, or chords
 - **Exact or "Up to" mode** — exact always shows N notes per beat; "up to" randomly varies between 1 and N
 - **Complementary note selection** — multi-note beats use consonant intervals (3rds, 4ths, 5ths, 6ths) so chords sound musical

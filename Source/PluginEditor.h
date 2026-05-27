@@ -20,10 +20,10 @@ private:
     void paintSpeedRun (juce::Graphics&, juce::Rectangle<int>);
     void paintSightRead (juce::Graphics&, juce::Rectangle<int>);
     void drawStaff (juce::Graphics&, juce::Rectangle<float>,
-                    const std::array<std::array<int, 3>, 4>*,
-                    const std::array<bool, 4>*,
-                    const std::array<std::array<bool, 3>, 4>*,
-                    const std::array<int, 4>*, int);
+                    const std::array<std::array<int, 3>, 16>*,
+                    const std::array<bool, 16>*,
+                    const std::array<std::array<bool, 3>, 16>*,
+                    const std::array<int, 16>*, int, int);
 
     DanielsPianoHelperProcessor& getProcessor()
     {
@@ -47,6 +47,8 @@ private:
     juce::ComboBox   modeSelector;
     juce::ComboBox   spreadSelector;
     juce::Label      spreadLabel    { {}, "Spread:" };
+    juce::ComboBox   barsSelector;
+    juce::Label      barsLabel      { {}, "Bars:" };
     bool sheetRunning = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DanielsPianoHelperEditor)

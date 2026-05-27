@@ -125,6 +125,23 @@ DanielsPianoHelperEditor::DanielsPianoHelperEditor (DanielsPianoHelperProcessor&
     spreadSelector.setColour (juce::ComboBox::outlineColourId, colours::accent);
     addAndMakeVisible (spreadSelector);
 
+    barsLabel.setColour (juce::Label::textColourId, colours::text);
+    barsLabel.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (barsLabel);
+
+    for (int i = 1; i <= 4; ++i)
+        barsSelector.addItem (juce::String (i), i);
+    barsSelector.setSelectedId (1);
+    barsSelector.setColour (juce::ComboBox::backgroundColourId, colours::surface);
+    barsSelector.setColour (juce::ComboBox::textColourId, colours::text);
+    barsSelector.setColour (juce::ComboBox::outlineColourId, colours::accent);
+    barsSelector.onChange = [this]
+    {
+        if (currentTab == Tab::SightRead)
+            setSize (420 + (barsSelector.getSelectedId() - 1) * 160, 600);
+    };
+    addAndMakeVisible (barsSelector);
+
     sheetStartStop.setColour (juce::TextButton::buttonColourId, colours::accent);
     sheetStartStop.setColour (juce::TextButton::textColourOffId, colours::btnText);
     sheetStartStop.onClick = [this]
@@ -142,7 +159,8 @@ DanielsPianoHelperEditor::DanielsPianoHelperEditor (DanielsPianoHelperProcessor&
         {
             proc.sheetTrainer.start (notesSelector.getSelectedId(),
                                      spreadSelector.getSelectedId(),
-                                     modeSelector.getSelectedId() == 1);
+                                     modeSelector.getSelectedId() == 1,
+                                     barsSelector.getSelectedId());
             sheetRunning = true;
             sheetStartStop.setButtonText ("STOP");
             sheetStartStop.setColour (juce::TextButton::buttonColourId, colours::stopBg);
@@ -202,8 +220,11 @@ void DanielsPianoHelperEditor::switchTab (Tab tab)
     modeSelector.setVisible (! sr && ! single);
     spreadLabel.setVisible (! sr && ! single);
     spreadSelector.setVisible (! sr && ! single);
+    barsLabel.setVisible (! sr);
+    barsSelector.setVisible (! sr);
     sheetStartStop.setVisible (! sr);
 
+    setSize (sr ? 420 : (420 + (barsSelector.getSelectedId() - 1) * 160), 600);
     resized();
     repaint();
 }
@@ -427,11 +448,13 @@ void DanielsPianoHelperEditor::paintSightRead (juce::Graphics& g, juce::Rectangl
             g.fillRoundedRectangle (staffRect.toFloat().expanded (6), 10.0f);
         }
 
-        drawStaff (g, staffRect.toFloat(), &notes, &done, &hits, &counts, idx);
+        int nb = trainer.getNumBars();
+        drawStaff (g, staffRect.toFloat(), &notes, &done, &hits, &counts, idx, nb);
     }
     else
     {
-        drawStaff (g, staffRect.toFloat(), nullptr, nullptr, nullptr, nullptr, -1);
+        drawStaff (g, staffRect.toFloat(), nullptr, nullptr, nullptr, nullptr, -1,
+                   barsSelector.getSelectedId());
 
         g.setColour (colours::textDim);
         g.setFont (juce::Font (juce::FontOptions (22.0f)));
@@ -458,11 +481,11 @@ void DanielsPianoHelperEditor::paintSightRead (juce::Graphics& g, juce::Rectangl
 
 //==============================================================================
 void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<float> bounds,
-                                      const std::array<std::array<int, 3>, 4>* notes,
-                                      const std::array<bool, 4>* completed,
-                                      const std::array<std::array<bool, 3>, 4>* noteHit,
-                                      const std::array<int, 4>* beatCounts,
-                                      int currentIndex)
+                                      const std::array<std::array<int, 3>, 16>* notes,
+                                      const std::array<bool, 16>* completed,
+                                      const std::array<std::array<bool, 3>, 16>* noteHit,
+                                      const std::array<int, 16>* beatCounts,
+                                      int currentIndex, int numBars)
 {
     const float lineSpacing = 14.0f;
     const float staffHeight = 4.0f * lineSpacing;
@@ -502,20 +525,32 @@ void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<flo
                 juce::Rectangle<float> (tsX, staffTop + staffHeight / 2.0f, 18.0f, staffHeight / 2.0f).toNearestInt(),
                 juce::Justification::centred);
 
+    // internal barlines and note layout
+    const float notesStart = staffL + 65.0f;
+    const float notesEnd   = staffR - 15.0f;
+    const float barWidth   = (notesEnd - notesStart) / (float) numBars;
+
+    g.setColour (colours::textDim.withAlpha (0.5f));
+    for (int b = 1; b < numBars; ++b)
+    {
+        float bx = notesStart + barWidth * (float) b;
+        g.drawLine (bx, staffTop, bx, bottomLineY, 1.5f);
+    }
+
     if (notes == nullptr)
         return;
 
-    // note layout
-    const float notesStart = staffL + 65.0f;
-    const float notesEnd   = staffR - 15.0f;
-    const float noteGap    = (notesEnd - notesStart) / 4.0f;
-    const float nhW        = lineSpacing * 1.4f;
-    const float nhH        = lineSpacing * 0.9f;
-    const float stemLen    = lineSpacing * 3.5f;
+    const int totalBeats = numBars * SheetTrainer::kNotesPerBar;
+    const float beatGap  = barWidth / (float) SheetTrainer::kNotesPerBar;
+    const float nhW      = lineSpacing * 1.4f;
+    const float nhH      = lineSpacing * 0.9f;
+    const float stemLen  = lineSpacing * 3.5f;
 
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < totalBeats; ++i)
     {
-        float cx = notesStart + noteGap * ((float) i + 0.5f);
+        int bar = i / SheetTrainer::kNotesPerBar;
+        int beatInBar = i % SheetTrainer::kNotesPerBar;
+        float cx = notesStart + barWidth * (float) bar + beatGap * ((float) beatInBar + 0.5f);
         int bpc = beatCounts != nullptr ? (*beatCounts)[(size_t) i] : 1;
 
         // collect staff positions for all notes in this beat
@@ -653,18 +688,22 @@ void DanielsPianoHelperEditor::resized()
         // skip title area (painted), then config row
         area.removeFromTop (50);
         auto config = area.removeFromTop (40).reduced (10, 5);
-        notesLabel.setBounds (config.removeFromLeft (48));
+        barsLabel.setBounds (config.removeFromLeft (36));
         config.removeFromLeft (4);
-        notesSelector.setBounds (config.removeFromLeft (55));
+        barsSelector.setBounds (config.removeFromLeft (50));
+        config.removeFromLeft (10);
+        notesLabel.setBounds (config.removeFromLeft (42));
+        config.removeFromLeft (4);
+        notesSelector.setBounds (config.removeFromLeft (50));
 
         if (notesSelector.getSelectedId() > 1)
         {
             config.removeFromLeft (6);
-            modeSelector.setBounds (config.removeFromLeft (72));
-            config.removeFromLeft (10);
-            spreadLabel.setBounds (config.removeFromLeft (50));
+            modeSelector.setBounds (config.removeFromLeft (65));
+            config.removeFromLeft (8);
+            spreadLabel.setBounds (config.removeFromLeft (48));
             config.removeFromLeft (4);
-            spreadSelector.setBounds (config.removeFromLeft (65));
+            spreadSelector.setBounds (config.removeFromLeft (58));
         }
 
         sheetStartStop.setBounds (buttons.reduced ((buttons.getWidth() - 140) / 2, 0));

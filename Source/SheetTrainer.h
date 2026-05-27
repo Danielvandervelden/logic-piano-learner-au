@@ -9,18 +9,21 @@ public:
     enum class State { Idle, Active };
     static constexpr int kNotesPerBar = 4;
     static constexpr int kMaxNotesPerBeat = 3;
+    static constexpr int kMaxBars = 4;
+    static constexpr int kMaxBeats = kMaxBars * kNotesPerBar;
 
-    void start (int numNotesPerBeat = 1, int spreadSemitones = 12, bool exact = true)
+    void start (int numNotesPerBeat = 1, int spreadSemitones = 12, bool exact = true, int bars = 1)
     {
         juce::SpinLock::ScopedLockType sl (lock);
         notesPerBeat = juce::jlimit (1, 3, numNotesPerBeat);
         maxSpread = juce::jlimit (3, 21, spreadSemitones);
         exactMode = exact;
+        numBars = juce::jlimit (1, kMaxBars, bars);
         state = State::Active;
         barsCompleted = 0;
         totalWrongNotes = 0;
         barComplete = false;
-        generateBar();
+        generateBars();
     }
 
     void stop()
@@ -72,9 +75,9 @@ public:
             completed[(size_t) currentNoteIndex] = true;
             currentNoteIndex++;
 
-            if (currentNoteIndex >= kNotesPerBar)
+            if (currentNoteIndex >= numBars * kNotesPerBar)
             {
-                barsCompleted++;
+                barsCompleted += numBars;
                 barComplete = true;
                 barCompleteTime = std::chrono::steady_clock::now();
             }
@@ -94,7 +97,7 @@ public:
         if (ms > 700)
         {
             barComplete = false;
-            generateBar();
+            generateBars();
         }
     }
 
@@ -104,19 +107,19 @@ public:
         return state;
     }
 
-    std::array<std::array<int, kMaxNotesPerBeat>, kNotesPerBar> getBarNotes() const
+    std::array<std::array<int, kMaxNotesPerBeat>, kMaxBeats> getBarNotes() const
     {
         juce::SpinLock::ScopedLockType sl (lock);
         return barNotes;
     }
 
-    std::array<bool, kNotesPerBar> getCompleted() const
+    std::array<bool, kMaxBeats> getCompleted() const
     {
         juce::SpinLock::ScopedLockType sl (lock);
         return completed;
     }
 
-    std::array<std::array<bool, kMaxNotesPerBeat>, kNotesPerBar> getNoteHit() const
+    std::array<std::array<bool, kMaxNotesPerBeat>, kMaxBeats> getNoteHit() const
     {
         juce::SpinLock::ScopedLockType sl (lock);
         return noteHit;
@@ -128,7 +131,7 @@ public:
         return notesPerBeat;
     }
 
-    std::array<int, kNotesPerBar> getBeatNoteCount() const
+    std::array<int, kMaxBeats> getBeatNoteCount() const
     {
         juce::SpinLock::ScopedLockType sl (lock);
         return beatNoteCount;
@@ -156,6 +159,12 @@ public:
     {
         juce::SpinLock::ScopedLockType sl (lock);
         return barComplete;
+    }
+
+    int getNumBars() const
+    {
+        juce::SpinLock::ScopedLockType sl (lock);
+        return numBars;
     }
 
     std::chrono::steady_clock::time_point getLastCorrectTime() const
@@ -201,13 +210,14 @@ private:
             || interval == 7 || interval == 8 || interval == 9;
     }
 
-    void generateBar()
+    void generateBars()
     {
         static constexpr int pool[] = { 60, 62, 64, 65, 67, 69, 71,
                                         72, 74, 76, 77, 79, 81 };
         static constexpr int poolSize = 13;
 
-        for (int i = 0; i < kNotesPerBar; ++i)
+        int totalBeats = numBars * kNotesPerBar;
+        for (int i = 0; i < totalBeats; ++i)
         {
             int count = notesPerBeat;
             if (! exactMode && notesPerBeat > 1)
@@ -292,13 +302,14 @@ private:
 
     mutable juce::SpinLock lock;
     State state = State::Idle;
-    std::array<std::array<int, kMaxNotesPerBeat>, kNotesPerBar> barNotes {};
-    std::array<std::array<bool, kMaxNotesPerBeat>, kNotesPerBar> noteHit {};
-    std::array<bool, kNotesPerBar> completed {};
-    std::array<int, kNotesPerBar> beatNoteCount {};
+    std::array<std::array<int, kMaxNotesPerBeat>, kMaxBeats> barNotes {};
+    std::array<std::array<bool, kMaxNotesPerBeat>, kMaxBeats> noteHit {};
+    std::array<bool, kMaxBeats> completed {};
+    std::array<int, kMaxBeats> beatNoteCount {};
     int notesPerBeat = 1;
     int maxSpread = 12;
     bool exactMode = true;
+    int numBars = 1;
     int currentNoteIndex = 0;
     int barsCompleted = 0;
     int totalWrongNotes = 0;
