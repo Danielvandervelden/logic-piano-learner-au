@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(DanielsPianoHelper VERSION 1.1.0)
+project(DanielsPianoHelper VERSION 1.2.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
