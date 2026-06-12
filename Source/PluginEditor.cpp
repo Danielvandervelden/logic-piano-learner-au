@@ -138,9 +138,22 @@ DanielsPianoHelperEditor::DanielsPianoHelperEditor (DanielsPianoHelperProcessor&
     barsSelector.onChange = [this]
     {
         if (currentTab == Tab::SightRead)
-            setSize (420 + (barsSelector.getSelectedId() - 1) * 160, 600);
+            setSize (540 + (barsSelector.getSelectedId() - 1) * 160, 600);
     };
     addAndMakeVisible (barsSelector);
+
+    clefLabel.setColour (juce::Label::textColourId, colours::text);
+    clefLabel.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (clefLabel);
+
+    clefSelector.addItem ("Treble", 1);
+    clefSelector.addItem ("Bass", 2);
+    clefSelector.setSelectedId (1);
+    clefSelector.setColour (juce::ComboBox::backgroundColourId, colours::surface);
+    clefSelector.setColour (juce::ComboBox::textColourId, colours::text);
+    clefSelector.setColour (juce::ComboBox::outlineColourId, colours::accent);
+    clefSelector.onChange = [this] { repaint(); };
+    addAndMakeVisible (clefSelector);
 
     sheetStartStop.setColour (juce::TextButton::buttonColourId, colours::accent);
     sheetStartStop.setColour (juce::TextButton::textColourOffId, colours::btnText);
@@ -160,7 +173,10 @@ DanielsPianoHelperEditor::DanielsPianoHelperEditor (DanielsPianoHelperProcessor&
             proc.sheetTrainer.start (notesSelector.getSelectedId(),
                                      spreadSelector.getSelectedId(),
                                      modeSelector.getSelectedId() == 1,
-                                     barsSelector.getSelectedId());
+                                     barsSelector.getSelectedId(),
+                                     clefSelector.getSelectedId() == 2
+                                         ? SheetTrainer::Clef::Bass
+                                         : SheetTrainer::Clef::Treble);
             sheetRunning = true;
             sheetStartStop.setButtonText ("STOP");
             sheetStartStop.setColour (juce::TextButton::buttonColourId, colours::stopBg);
@@ -222,9 +238,11 @@ void DanielsPianoHelperEditor::switchTab (Tab tab)
     spreadSelector.setVisible (! sr && ! single);
     barsLabel.setVisible (! sr);
     barsSelector.setVisible (! sr);
+    clefLabel.setVisible (! sr);
+    clefSelector.setVisible (! sr);
     sheetStartStop.setVisible (! sr);
 
-    setSize (sr ? 420 : (420 + (barsSelector.getSelectedId() - 1) * 160), 600);
+    setSize (sr ? 420 : (540 + (barsSelector.getSelectedId() - 1) * 160), 600);
     resized();
     repaint();
 }
@@ -449,12 +467,16 @@ void DanielsPianoHelperEditor::paintSightRead (juce::Graphics& g, juce::Rectangl
         }
 
         int nb = trainer.getNumBars();
-        drawStaff (g, staffRect.toFloat(), &notes, &done, &hits, &counts, idx, nb);
+        drawStaff (g, staffRect.toFloat(), &notes, &done, &hits, &counts, idx, nb,
+                   trainer.getClef());
     }
     else
     {
         drawStaff (g, staffRect.toFloat(), nullptr, nullptr, nullptr, nullptr, -1,
-                   barsSelector.getSelectedId());
+                   barsSelector.getSelectedId(),
+                   clefSelector.getSelectedId() == 2
+                       ? SheetTrainer::Clef::Bass
+                       : SheetTrainer::Clef::Treble);
 
         g.setColour (colours::textDim);
         g.setFont (juce::Font (juce::FontOptions (22.0f)));
@@ -485,7 +507,8 @@ void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<flo
                                       const std::array<bool, 16>* completed,
                                       const std::array<std::array<bool, 3>, 16>* noteHit,
                                       const std::array<int, 16>* beatCounts,
-                                      int currentIndex, int numBars)
+                                      int currentIndex, int numBars,
+                                      SheetTrainer::Clef clef)
 {
     const float lineSpacing = 14.0f;
     const float staffHeight = 4.0f * lineSpacing;
@@ -507,13 +530,23 @@ void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<flo
     g.drawLine (staffL, staffTop, staffL, bottomLineY, 1.5f);
     g.drawLine (staffR, staffTop, staffR, bottomLineY, 1.5f);
 
-    // treble clef
+    // clef glyph (treble U+1D11E, bass U+1D122)
     g.setColour (colours::text);
     g.setFont (juce::Font (juce::FontOptions (48.0f)));
-    auto clefRect = juce::Rectangle<float> (staffL + 2, staffTop - lineSpacing * 1.5f,
-                                             30.0f, staffHeight + lineSpacing * 3.0f);
-    g.drawText (juce::String::fromUTF8 ("\xF0\x9D\x84\x9E"),
-                clefRect.toNearestInt(), juce::Justification::centred);
+    if (clef == SheetTrainer::Clef::Bass)
+    {
+        auto clefRect = juce::Rectangle<float> (staffL + 2, staffTop - lineSpacing * 0.5f,
+                                                 30.0f, staffHeight + lineSpacing);
+        g.drawText (juce::String::fromUTF8 ("\xF0\x9D\x84\xA2"),
+                    clefRect.toNearestInt(), juce::Justification::centred);
+    }
+    else
+    {
+        auto clefRect = juce::Rectangle<float> (staffL + 2, staffTop - lineSpacing * 1.5f,
+                                                 30.0f, staffHeight + lineSpacing * 3.0f);
+        g.drawText (juce::String::fromUTF8 ("\xF0\x9D\x84\x9E"),
+                    clefRect.toNearestInt(), juce::Justification::centred);
+    }
 
     // 4/4 time signature
     float tsX = staffL + 36.0f;
@@ -558,7 +591,7 @@ void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<flo
         int spMin = 999, spMax = -999;
         for (int n = 0; n < bpc; ++n)
         {
-            spArr[n] = SheetTrainer::staffPosition ((*notes)[(size_t) i][(size_t) n]);
+            spArr[n] = SheetTrainer::staffPosition ((*notes)[(size_t) i][(size_t) n], clef);
             spMin = juce::jmin (spMin, spArr[n]);
             spMax = juce::jmax (spMax, spArr[n]);
         }
@@ -695,6 +728,10 @@ void DanielsPianoHelperEditor::resized()
         notesLabel.setBounds (config.removeFromLeft (42));
         config.removeFromLeft (4);
         notesSelector.setBounds (config.removeFromLeft (50));
+        config.removeFromLeft (10);
+        clefLabel.setBounds (config.removeFromLeft (36));
+        config.removeFromLeft (4);
+        clefSelector.setBounds (config.removeFromLeft (62));
 
         if (notesSelector.getSelectedId() > 1)
         {

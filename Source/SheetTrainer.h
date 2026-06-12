@@ -7,18 +7,21 @@ class SheetTrainer
 {
 public:
     enum class State { Idle, Active };
+    enum class Clef { Treble, Bass };
     static constexpr int kNotesPerBar = 4;
     static constexpr int kMaxNotesPerBeat = 3;
     static constexpr int kMaxBars = 4;
     static constexpr int kMaxBeats = kMaxBars * kNotesPerBar;
 
-    void start (int numNotesPerBeat = 1, int spreadSemitones = 12, bool exact = true, int bars = 1)
+    void start (int numNotesPerBeat = 1, int spreadSemitones = 12, bool exact = true,
+                int bars = 1, Clef clefIn = Clef::Treble)
     {
         juce::SpinLock::ScopedLockType sl (lock);
         notesPerBeat = juce::jlimit (1, 3, numNotesPerBeat);
         maxSpread = juce::jlimit (3, 21, spreadSemitones);
         exactMode = exact;
         numBars = juce::jlimit (1, kMaxBars, bars);
+        clef = clefIn;
         state = State::Active;
         barsCompleted = 0;
         totalWrongNotes = 0;
@@ -179,8 +182,29 @@ public:
         return lastWrongTime;
     }
 
-    static int staffPosition (int midiNote)
+    static int staffPosition (int midiNote, Clef clef = Clef::Treble)
     {
+        if (clef == Clef::Bass)
+        {
+            switch (midiNote)
+            {
+                case 40: return -2;  // E2
+                case 41: return -1;  // F2
+                case 43: return  0;  // G2 (bottom line)
+                case 45: return  1;  // A2
+                case 47: return  2;  // B2
+                case 48: return  3;  // C3
+                case 50: return  4;  // D3 (middle line)
+                case 52: return  5;  // E3
+                case 53: return  6;  // F3
+                case 55: return  7;  // G3
+                case 57: return  8;  // A3 (top line)
+                case 59: return  9;  // B3
+                case 60: return 10;  // C4 (middle C)
+                default: return  0;
+            }
+        }
+
         switch (midiNote)
         {
             case 60: return -2;  // C4
@@ -200,6 +224,12 @@ public:
         }
     }
 
+    Clef getClef() const
+    {
+        juce::SpinLock::ScopedLockType sl (lock);
+        return clef;
+    }
+
 private:
     static bool isConsonant (int a, int b)
     {
@@ -212,9 +242,12 @@ private:
 
     void generateBars()
     {
-        static constexpr int pool[] = { 60, 62, 64, 65, 67, 69, 71,
-                                        72, 74, 76, 77, 79, 81 };
+        static constexpr int treblePool[] = { 60, 62, 64, 65, 67, 69, 71,
+                                               72, 74, 76, 77, 79, 81 };
+        static constexpr int bassPool[]   = { 40, 41, 43, 45, 47, 48, 50,
+                                              52, 53, 55, 57, 59, 60 };
         static constexpr int poolSize = 13;
+        const int* pool = (clef == Clef::Bass) ? bassPool : treblePool;
 
         int totalBeats = numBars * kNotesPerBar;
         for (int i = 0; i < totalBeats; ++i)
@@ -310,6 +343,7 @@ private:
     int maxSpread = 12;
     bool exactMode = true;
     int numBars = 1;
+    Clef clef = Clef::Treble;
     int currentNoteIndex = 0;
     int barsCompleted = 0;
     int totalWrongNotes = 0;

@@ -14,8 +14,9 @@ Rapid-fire note recognition trainer. A random note name appears on screen and yo
 - **Session export** — export round-by-round results to CSV
 
 ### Sight Read Mode
-Read notes from a 4/4 staff and play them in order. Generates random bars of natural notes in the treble clef range (C4–A5).
+Read notes from a 4/4 staff and play them in order. Generates random bars of natural notes in your chosen clef.
 
+- **Treble or bass clef:** pick one clef at a time. Treble covers C4 to A5; bass covers E2 to C4 (middle C sits on the top ledger line)
 - **1–4 bars** — choose how many bars to display and practice at once; the window resizes to fit
 - **1, 2, or 3 notes per beat** — practice single notes, intervals, or chords
 - **Exact or "Up to" mode** — exact always shows N notes per beat; "up to" randomly varies between 1 and N
@@ -37,10 +38,10 @@ Restart Logic Pro, then add "Daniels Piano Helper" as a MIDI effect on a softwar
 
 ## Building from Source
 
-Requires CMake 3.22+ and a C++17 compiler. JUCE is included as a git submodule.
+Requires CMake 3.22+ and a C++17 compiler. JUCE 8 must be present in a `JUCE/` directory at the project root (it is git-ignored, so clone it yourself).
 
 ```bash
-git submodule update --init
+git clone --depth 1 --branch 8.0.4 https://github.com/juce-framework/JUCE.git JUCE
 mkdir build && cd build
 cmake ..
 cmake --build .
@@ -50,7 +51,7 @@ The AU plugin is automatically copied to `~/Library/Audio/Plug-Ins/Components/` 
 
 ## Tech
 
-- **Framework**: JUCE 7
+- **Framework**: JUCE 8
 - **Format**: AU (Audio Unit)
 - **Language**: C++17
 - **Platform**: macOS 13+

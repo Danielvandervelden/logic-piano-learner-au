@@ -23,7 +23,8 @@ private:
                     const std::array<std::array<int, 3>, 16>*,
                     const std::array<bool, 16>*,
                     const std::array<std::array<bool, 3>, 16>*,
-                    const std::array<int, 16>*, int, int);
+                    const std::array<int, 16>*, int, int,
+                    SheetTrainer::Clef);
 
     DanielsPianoHelperProcessor& getProcessor()
     {
@@ -49,6 +50,8 @@ private:
     juce::Label      spreadLabel    { {}, "Spread:" };
     juce::ComboBox   barsSelector;
     juce::Label      barsLabel      { {}, "Bars:" };
+    juce::ComboBox   clefSelector;
+    juce::Label      clefLabel      { {}, "Clef:" };
     bool sheetRunning = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DanielsPianoHelperEditor)
