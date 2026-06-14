@@ -138,7 +138,8 @@ DanielsPianoHelperEditor::DanielsPianoHelperEditor (DanielsPianoHelperProcessor&
     barsSelector.onChange = [this]
     {
         if (currentTab == Tab::SightRead)
-            setSize (540 + (barsSelector.getSelectedId() - 1) * 160, 600);
+            setSize (540 + (barsSelector.getSelectedId() - 1) * 160,
+                     selectedClef() == SheetTrainer::Clef::Grand ? 720 : 600);
     };
     addAndMakeVisible (barsSelector);
 
@@ -148,11 +149,18 @@ DanielsPianoHelperEditor::DanielsPianoHelperEditor (DanielsPianoHelperProcessor&
 
     clefSelector.addItem ("Treble", 1);
     clefSelector.addItem ("Bass", 2);
+    clefSelector.addItem ("Grand", 3);
     clefSelector.setSelectedId (1);
     clefSelector.setColour (juce::ComboBox::backgroundColourId, colours::surface);
     clefSelector.setColour (juce::ComboBox::textColourId, colours::text);
     clefSelector.setColour (juce::ComboBox::outlineColourId, colours::accent);
-    clefSelector.onChange = [this] { repaint(); };
+    clefSelector.onChange = [this]
+    {
+        if (currentTab == Tab::SightRead)
+            setSize (540 + (barsSelector.getSelectedId() - 1) * 160,
+                     selectedClef() == SheetTrainer::Clef::Grand ? 720 : 600);
+        repaint();
+    };
     addAndMakeVisible (clefSelector);
 
     sheetStartStop.setColour (juce::TextButton::buttonColourId, colours::accent);
@@ -174,9 +182,7 @@ DanielsPianoHelperEditor::DanielsPianoHelperEditor (DanielsPianoHelperProcessor&
                                      spreadSelector.getSelectedId(),
                                      modeSelector.getSelectedId() == 1,
                                      barsSelector.getSelectedId(),
-                                     clefSelector.getSelectedId() == 2
-                                         ? SheetTrainer::Clef::Bass
-                                         : SheetTrainer::Clef::Treble);
+                                     selectedClef());
             sheetRunning = true;
             sheetStartStop.setButtonText ("STOP");
             sheetStartStop.setColour (juce::TextButton::buttonColourId, colours::stopBg);
@@ -242,7 +248,8 @@ void DanielsPianoHelperEditor::switchTab (Tab tab)
     clefSelector.setVisible (! sr);
     sheetStartStop.setVisible (! sr);
 
-    setSize (sr ? 420 : (540 + (barsSelector.getSelectedId() - 1) * 160), 600);
+    setSize (sr ? 420 : (540 + (barsSelector.getSelectedId() - 1) * 160),
+             (! sr && selectedClef() == SheetTrainer::Clef::Grand) ? 720 : 600);
     resized();
     repaint();
 }
@@ -443,8 +450,10 @@ void DanielsPianoHelperEditor::paintSightRead (juce::Graphics& g, juce::Rectangl
 
     area.removeFromTop (40); // config controls row
 
-    // staff background
-    auto staffRect = area.removeFromTop (200).reduced (10, 15);
+    // staff background (grand staff needs more vertical room for two staves)
+    bool grand = (sheetRunning ? trainer.getClef() == SheetTrainer::Clef::Grand
+                               : selectedClef() == SheetTrainer::Clef::Grand);
+    auto staffRect = area.removeFromTop (grand ? 340 : 200).reduced (10, 15);
     g.setColour (colours::noteBox);
     g.fillRoundedRectangle (staffRect.toFloat().expanded (6), 10.0f);
 
@@ -454,6 +463,7 @@ void DanielsPianoHelperEditor::paintSightRead (juce::Graphics& g, juce::Rectangl
         auto done   = trainer.getCompleted();
         auto hits   = trainer.getNoteHit();
         auto counts = trainer.getBeatNoteCount();
+        auto nclef  = trainer.getNoteClef();
         int idx     = trainer.getCurrentNoteIndex();
 
         auto now = std::chrono::steady_clock::now();
@@ -467,16 +477,13 @@ void DanielsPianoHelperEditor::paintSightRead (juce::Graphics& g, juce::Rectangl
         }
 
         int nb = trainer.getNumBars();
-        drawStaff (g, staffRect.toFloat(), &notes, &done, &hits, &counts, idx, nb,
+        drawStaff (g, staffRect.toFloat(), &notes, &done, &hits, &counts, &nclef, idx, nb,
                    trainer.getClef());
     }
     else
     {
-        drawStaff (g, staffRect.toFloat(), nullptr, nullptr, nullptr, nullptr, -1,
-                   barsSelector.getSelectedId(),
-                   clefSelector.getSelectedId() == 2
-                       ? SheetTrainer::Clef::Bass
-                       : SheetTrainer::Clef::Treble);
+        drawStaff (g, staffRect.toFloat(), nullptr, nullptr, nullptr, nullptr, nullptr, -1,
+                   barsSelector.getSelectedId(), selectedClef());
 
         g.setColour (colours::textDim);
         g.setFont (juce::Font (juce::FontOptions (22.0f)));
@@ -503,47 +510,107 @@ void DanielsPianoHelperEditor::paintSightRead (juce::Graphics& g, juce::Rectangl
 
 //==============================================================================
 void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<float> bounds,
-                                      const std::array<std::array<int, 3>, 16>* notes,
+                                      const std::array<std::array<int, 6>, 16>* notes,
                                       const std::array<bool, 16>* completed,
-                                      const std::array<std::array<bool, 3>, 16>* noteHit,
+                                      const std::array<std::array<bool, 6>, 16>* noteHit,
                                       const std::array<int, 16>* beatCounts,
+                                      const std::array<std::array<SheetTrainer::Clef, 6>, 16>* noteClef,
                                       int currentIndex, int numBars,
                                       SheetTrainer::Clef clef)
 {
-    const float lineSpacing = 14.0f;
-    const float staffHeight = 4.0f * lineSpacing;
-    const float staffCY     = bounds.getCentreY();
-    const float staffTop    = staffCY - staffHeight / 2.0f;
-    const float bottomLineY = staffTop + staffHeight;
-    const float staffL      = bounds.getX() + 8.0f;
-    const float staffR      = bounds.getRight() - 8.0f;
+    const float ls      = 14.0f;
+    const float centreY = bounds.getCentreY();
+    const float staffL  = bounds.getX() + 8.0f;
+    const float staffR  = bounds.getRight() - 8.0f;
+
+    const bool grand     = (clef == SheetTrainer::Clef::Grand);
+    const int  numStaves = grand ? 2 : 1;
+
+    // bottom-line Y and clef for each staff layer
+    float bottomLineY[2];
+    SheetTrainer::Clef staffClef[2];
+    if (grand)
+    {
+        bottomLineY[0] = centreY - 3.0f * ls;   // treble staff (right hand)
+        staffClef[0]   = SheetTrainer::Clef::Treble;
+        bottomLineY[1] = centreY + 3.0f * ls;   // bass staff (left hand)
+        staffClef[1]   = SheetTrainer::Clef::Bass;
+    }
+    else
+    {
+        bottomLineY[0] = centreY + 2.0f * ls;
+        staffClef[0]   = clef;
+    }
+
+    const float systemTop    = bottomLineY[0] - 4.0f * ls;
+    const float systemBottom = bottomLineY[numStaves - 1];
+
+    // horizontal layout shared by both staves so beat columns line up
+    const float notesStart = staffL + 65.0f;
+    const float notesEnd   = staffR - 15.0f;
+    const float barWidth   = (notesEnd - notesStart) / (float) numBars;
+
+    // barlines span the whole system (joins the staves in grand mode)
+    g.setColour (colours::textDim.withAlpha (0.5f));
+    g.drawLine (staffL, systemTop, staffL, systemBottom, 1.5f);
+    g.drawLine (staffR, systemTop, staffR, systemBottom, 1.5f);
+    for (int b = 1; b < numBars; ++b)
+    {
+        float bx = notesStart + barWidth * (float) b;
+        g.drawLine (bx, systemTop, bx, systemBottom, 1.5f);
+    }
+
+    // bracket joining the two staves (grand staff only)
+    if (grand)
+    {
+        float xb = staffL - 4.0f;
+        g.setColour (colours::text);
+        g.drawLine (xb, systemTop, xb, systemBottom, 2.5f);
+        g.drawLine (xb, systemTop, xb + 6.0f, systemTop, 2.5f);
+        g.drawLine (xb, systemBottom, xb + 6.0f, systemBottom, 2.5f);
+    }
+
+    for (int s = 0; s < numStaves; ++s)
+        drawStaffLayer (g, bottomLineY[s], ls, staffL, staffR, notesStart, barWidth, numBars,
+                        staffClef[s], notes, completed, noteHit, beatCounts, noteClef, currentIndex);
+}
+
+//==============================================================================
+void DanielsPianoHelperEditor::drawStaffLayer (juce::Graphics& g, float bottomLineY, float ls,
+                                      float staffL, float staffR, float notesStart, float barWidth, int numBars,
+                                      SheetTrainer::Clef layerClef,
+                                      const std::array<std::array<int, 6>, 16>* notes,
+                                      const std::array<bool, 16>* completed,
+                                      const std::array<std::array<bool, 6>, 16>* noteHit,
+                                      const std::array<int, 16>* beatCounts,
+                                      const std::array<std::array<SheetTrainer::Clef, 6>, 16>* noteClef,
+                                      int currentIndex)
+{
+    const float staffHeight = 4.0f * ls;
+    const float staffTop    = bottomLineY - staffHeight;
 
     // five staff lines
     g.setColour (colours::textDim.withAlpha (0.5f));
     for (int i = 0; i < 5; ++i)
     {
-        float y = staffTop + (float) i * lineSpacing;
+        float y = staffTop + (float) i * ls;
         g.drawLine (staffL, y, staffR, y, 1.0f);
     }
-
-    // barlines
-    g.drawLine (staffL, staffTop, staffL, bottomLineY, 1.5f);
-    g.drawLine (staffR, staffTop, staffR, bottomLineY, 1.5f);
 
     // clef glyph (treble U+1D11E, bass U+1D122)
     g.setColour (colours::text);
     g.setFont (juce::Font (juce::FontOptions (48.0f)));
-    if (clef == SheetTrainer::Clef::Bass)
+    if (layerClef == SheetTrainer::Clef::Bass)
     {
-        auto clefRect = juce::Rectangle<float> (staffL + 2, staffTop - lineSpacing * 0.5f,
-                                                 30.0f, staffHeight + lineSpacing);
+        auto clefRect = juce::Rectangle<float> (staffL + 2, staffTop - ls * 0.5f,
+                                                 30.0f, staffHeight + ls);
         g.drawText (juce::String::fromUTF8 ("\xF0\x9D\x84\xA2"),
                     clefRect.toNearestInt(), juce::Justification::centred);
     }
     else
     {
-        auto clefRect = juce::Rectangle<float> (staffL + 2, staffTop - lineSpacing * 1.5f,
-                                                 30.0f, staffHeight + lineSpacing * 3.0f);
+        auto clefRect = juce::Rectangle<float> (staffL + 2, staffTop - ls * 1.5f,
+                                                 30.0f, staffHeight + ls * 3.0f);
         g.drawText (juce::String::fromUTF8 ("\xF0\x9D\x84\x9E"),
                     clefRect.toNearestInt(), juce::Justification::centred);
     }
@@ -558,43 +625,41 @@ void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<flo
                 juce::Rectangle<float> (tsX, staffTop + staffHeight / 2.0f, 18.0f, staffHeight / 2.0f).toNearestInt(),
                 juce::Justification::centred);
 
-    // internal barlines and note layout
-    const float notesStart = staffL + 65.0f;
-    const float notesEnd   = staffR - 15.0f;
-    const float barWidth   = (notesEnd - notesStart) / (float) numBars;
-
-    g.setColour (colours::textDim.withAlpha (0.5f));
-    for (int b = 1; b < numBars; ++b)
-    {
-        float bx = notesStart + barWidth * (float) b;
-        g.drawLine (bx, staffTop, bx, bottomLineY, 1.5f);
-    }
-
     if (notes == nullptr)
         return;
 
     const int totalBeats = numBars * SheetTrainer::kNotesPerBar;
     const float beatGap  = barWidth / (float) SheetTrainer::kNotesPerBar;
-    const float nhW      = lineSpacing * 1.4f;
-    const float nhH      = lineSpacing * 0.9f;
-    const float stemLen  = lineSpacing * 3.5f;
+    const float nhW      = ls * 1.4f;
+    const float nhH      = ls * 0.9f;
+    const float stemLen  = ls * 3.5f;
 
     for (int i = 0; i < totalBeats; ++i)
     {
         int bar = i / SheetTrainer::kNotesPerBar;
         int beatInBar = i % SheetTrainer::kNotesPerBar;
         float cx = notesStart + barWidth * (float) bar + beatGap * ((float) beatInBar + 0.5f);
-        int bpc = beatCounts != nullptr ? (*beatCounts)[(size_t) i] : 1;
+        int bpc = (*beatCounts)[(size_t) i];
 
-        // collect staff positions for all notes in this beat
-        int spArr[3] {};
+        // collect only this staff's notes (in grand mode the other hand lives on the other staff)
+        int spArr[6] {};
+        int origIdx[6] {};
+        int localCount = 0;
         int spMin = 999, spMax = -999;
         for (int n = 0; n < bpc; ++n)
         {
-            spArr[n] = SheetTrainer::staffPosition ((*notes)[(size_t) i][(size_t) n], clef);
-            spMin = juce::jmin (spMin, spArr[n]);
-            spMax = juce::jmax (spMax, spArr[n]);
+            if ((*noteClef)[(size_t) i][(size_t) n] != layerClef)
+                continue;
+            int sp = SheetTrainer::staffPosition ((*notes)[(size_t) i][(size_t) n], layerClef);
+            spArr[localCount]   = sp;
+            origIdx[localCount] = n;
+            spMin = juce::jmin (spMin, sp);
+            spMax = juce::jmax (spMax, sp);
+            ++localCount;
         }
+
+        if (localCount == 0)
+            continue;
 
         // ledger lines below staff (draw once for the range)
         if (spMin < 0)
@@ -602,7 +667,7 @@ void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<flo
             g.setColour (colours::textDim.withAlpha (0.5f));
             for (int lp = -2; lp >= spMin; lp -= 2)
             {
-                float ly = bottomLineY - (float) lp * (lineSpacing / 2.0f);
+                float ly = bottomLineY - (float) lp * (ls / 2.0f);
                 g.drawLine (cx - nhW * 0.8f, ly, cx + nhW * 0.8f, ly, 1.0f);
             }
         }
@@ -613,14 +678,15 @@ void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<flo
             g.setColour (colours::textDim.withAlpha (0.5f));
             for (int lp = 10; lp <= spMax; lp += 2)
             {
-                float ly = bottomLineY - (float) lp * (lineSpacing / 2.0f);
+                float ly = bottomLineY - (float) lp * (ls / 2.0f);
                 g.drawLine (cx - nhW * 0.8f, ly, cx + nhW * 0.8f, ly, 1.0f);
             }
         }
 
         // draw noteheads with per-note coloring
-        for (int n = 0; n < bpc; ++n)
+        for (int k = 0; k < localCount; ++k)
         {
+            int n = origIdx[k];
             juce::Colour col;
             if ((*completed)[(size_t) i])
                 col = colours::success;
@@ -631,12 +697,12 @@ void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<flo
             else
                 col = colours::text.withAlpha (0.55f);
 
-            float cy = bottomLineY - (float) spArr[n] * (lineSpacing / 2.0f);
+            float cy = bottomLineY - (float) spArr[k] * (ls / 2.0f);
             g.setColour (col);
             g.fillEllipse (cx - nhW / 2.0f, cy - nhH / 2.0f, nhW, nhH);
         }
 
-        // stem color (per-beat)
+        // stem color (per beat, per staff)
         juce::Colour stemCol;
         if ((*completed)[(size_t) i])
             stemCol = colours::success;
@@ -646,10 +712,10 @@ void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<flo
             stemCol = colours::text.withAlpha (0.55f);
         g.setColour (stemCol);
 
-        if (bpc == 1)
+        if (localCount == 1)
         {
-            // single note — original stem logic
-            float cy = bottomLineY - (float) spArr[0] * (lineSpacing / 2.0f);
+            // single note
+            float cy = bottomLineY - (float) spArr[0] * (ls / 2.0f);
             if (spArr[0] < 4)
             {
                 float sx = cx + nhW / 2.0f - 1.0f;
@@ -663,24 +729,22 @@ void DanielsPianoHelperEditor::drawStaff (juce::Graphics& g, juce::Rectangle<flo
         }
         else
         {
-            // chord — shared stem spanning all noteheads
-            float cyLow  = bottomLineY - (float) spMin * (lineSpacing / 2.0f);
-            float cyHigh = bottomLineY - (float) spMax * (lineSpacing / 2.0f);
+            // chord — shared stem spanning this staff's noteheads
+            float cyLow  = bottomLineY - (float) spMin * (ls / 2.0f);
+            float cyHigh = bottomLineY - (float) spMax * (ls / 2.0f);
 
             float avgSp = 0.0f;
-            for (int n = 0; n < bpc; ++n)
-                avgSp += (float) spArr[n];
-            avgSp /= (float) bpc;
+            for (int k = 0; k < localCount; ++k)
+                avgSp += (float) spArr[k];
+            avgSp /= (float) localCount;
 
             if (avgSp < 4.0f)
             {
-                // stem up (right side)
                 float sx = cx + nhW / 2.0f - 1.0f;
                 g.drawLine (sx, cyLow, sx, cyHigh - stemLen, 2.0f);
             }
             else
             {
-                // stem down (left side)
                 float sx = cx - nhW / 2.0f + 1.0f;
                 g.drawLine (sx, cyHigh, sx, cyLow + stemLen, 2.0f);
             }

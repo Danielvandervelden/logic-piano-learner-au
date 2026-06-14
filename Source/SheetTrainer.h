@@ -7,9 +7,9 @@ class SheetTrainer
 {
 public:
     enum class State { Idle, Active };
-    enum class Clef { Treble, Bass };
+    enum class Clef { Treble, Bass, Grand };
     static constexpr int kNotesPerBar = 4;
-    static constexpr int kMaxNotesPerBeat = 3;
+    static constexpr int kMaxNotesPerBeat = 6;  // up to 3 per hand in grand-staff mode
     static constexpr int kMaxBars = 4;
     static constexpr int kMaxBeats = kMaxBars * kNotesPerBar;
 
@@ -230,6 +230,12 @@ public:
         return clef;
     }
 
+    std::array<std::array<Clef, kMaxNotesPerBeat>, kMaxBeats> getNoteClef() const
+    {
+        juce::SpinLock::ScopedLockType sl (lock);
+        return noteClef;
+    }
+
 private:
     static bool isConsonant (int a, int b)
     {
@@ -246,37 +252,50 @@ private:
                                                72, 74, 76, 77, 79, 81 };
         static constexpr int bassPool[]   = { 40, 41, 43, 45, 47, 48, 50,
                                               52, 53, 55, 57, 59, 60 };
-        static constexpr int poolSize = 13;
-        const int* pool = (clef == Clef::Bass) ? bassPool : treblePool;
+        static constexpr int fullPool = 13;
 
         int totalBeats = numBars * kNotesPerBar;
         for (int i = 0; i < totalBeats; ++i)
         {
-            int count = notesPerBeat;
-            if (! exactMode && notesPerBeat > 1)
-                count = 1 + random.nextInt (notesPerBeat);
-
-            beatNoteCount[(size_t) i] = count;
-
-            if (count == 1)
-            {
-                barNotes[(size_t) i][0] = pool[(size_t) random.nextInt (poolSize)];
-            }
-            else
-            {
-                pickChord (i, pool, poolSize, count);
-            }
-
             completed[(size_t) i] = false;
             for (int n = 0; n < kMaxNotesPerBeat; ++n)
                 noteHit[(size_t) i][(size_t) n] = false;
+
+            if (clef == Clef::Grand)
+            {
+                int tCount = pickCount();
+                int bCount = pickCount();
+                // right hand (treble) first, then left hand (bass). Drop C4 (last
+                // bass entry) so the two hands never collide on middle C.
+                fillGroup (i, 0, tCount, treblePool, fullPool, Clef::Treble);
+                fillGroup (i, tCount, bCount, bassPool, fullPool - 1, Clef::Bass);
+                beatNoteCount[(size_t) i] = tCount + bCount;
+            }
+            else
+            {
+                const int* pool = (clef == Clef::Bass) ? bassPool : treblePool;
+                int count = pickCount();
+                fillGroup (i, 0, count, pool, fullPool, clef);
+                beatNoteCount[(size_t) i] = count;
+            }
         }
         currentNoteIndex = 0;
     }
 
-    void pickChord (int beatIndex, const int* pool, int poolSize, int count)
+    int pickCount()
     {
-        barNotes[(size_t) beatIndex][0] = pool[(size_t) random.nextInt (poolSize)];
+        int count = notesPerBeat;
+        if (! exactMode && notesPerBeat > 1)
+            count = 1 + random.nextInt (notesPerBeat);
+        return count;
+    }
+
+    // Fills `count` notes for one hand at slots [offset, offset+count) from `pool`,
+    // keeping the chord consonant and within maxSpread, sorted low to high, and
+    // tags each note with the staff (clef) it belongs to.
+    void fillGroup (int beatIndex, int offset, int count, const int* pool, int poolSize, Clef groupClef)
+    {
+        barNotes[(size_t) beatIndex][(size_t) offset] = pool[(size_t) random.nextInt (poolSize)];
 
         for (int n = 1; n < count; ++n)
         {
@@ -289,14 +308,14 @@ private:
 
                 bool used = false;
                 for (int j = 0; j < n; ++j)
-                    if (barNotes[(size_t) beatIndex][(size_t) j] == candidate)
+                    if (barNotes[(size_t) beatIndex][(size_t) (offset + j)] == candidate)
                         used = true;
                 if (used)
                     continue;
 
                 bool consonant = true;
                 for (int j = 0; j < n; ++j)
-                    if (! isConsonant (candidate, barNotes[(size_t) beatIndex][(size_t) j]))
+                    if (! isConsonant (candidate, barNotes[(size_t) beatIndex][(size_t) (offset + j)]))
                     {
                         consonant = false;
                         break;
@@ -307,8 +326,8 @@ private:
                 int lo = candidate, hi = candidate;
                 for (int j = 0; j < n; ++j)
                 {
-                    lo = juce::jmin (lo, barNotes[(size_t) beatIndex][(size_t) j]);
-                    hi = juce::jmax (hi, barNotes[(size_t) beatIndex][(size_t) j]);
+                    lo = juce::jmin (lo, barNotes[(size_t) beatIndex][(size_t) (offset + j)]);
+                    hi = juce::jmax (hi, barNotes[(size_t) beatIndex][(size_t) (offset + j)]);
                 }
                 if (hi - lo > maxSpread)
                     continue;
@@ -317,25 +336,29 @@ private:
             }
 
             if (candidateCount > 0)
-                barNotes[(size_t) beatIndex][(size_t) n] =
+                barNotes[(size_t) beatIndex][(size_t) (offset + n)] =
                     candidates[(size_t) random.nextInt (candidateCount)];
             else
-                barNotes[(size_t) beatIndex][(size_t) n] =
-                    barNotes[(size_t) beatIndex][0];
+                barNotes[(size_t) beatIndex][(size_t) (offset + n)] =
+                    barNotes[(size_t) beatIndex][(size_t) offset];
         }
 
-        // sort notes low to high for display
+        // sort this hand's notes low to high for display
         for (int a = 0; a < count - 1; ++a)
             for (int b = a + 1; b < count; ++b)
-                if (barNotes[(size_t) beatIndex][(size_t) a]
-                    > barNotes[(size_t) beatIndex][(size_t) b])
-                    std::swap (barNotes[(size_t) beatIndex][(size_t) a],
-                               barNotes[(size_t) beatIndex][(size_t) b]);
+                if (barNotes[(size_t) beatIndex][(size_t) (offset + a)]
+                    > barNotes[(size_t) beatIndex][(size_t) (offset + b)])
+                    std::swap (barNotes[(size_t) beatIndex][(size_t) (offset + a)],
+                               barNotes[(size_t) beatIndex][(size_t) (offset + b)]);
+
+        for (int n = 0; n < count; ++n)
+            noteClef[(size_t) beatIndex][(size_t) (offset + n)] = groupClef;
     }
 
     mutable juce::SpinLock lock;
     State state = State::Idle;
     std::array<std::array<int, kMaxNotesPerBeat>, kMaxBeats> barNotes {};
+    std::array<std::array<Clef, kMaxNotesPerBeat>, kMaxBeats> noteClef {};
     std::array<std::array<bool, kMaxNotesPerBeat>, kMaxBeats> noteHit {};
     std::array<bool, kMaxBeats> completed {};
     std::array<int, kMaxBeats> beatNoteCount {};

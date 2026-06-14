@@ -20,11 +20,30 @@ private:
     void paintSpeedRun (juce::Graphics&, juce::Rectangle<int>);
     void paintSightRead (juce::Graphics&, juce::Rectangle<int>);
     void drawStaff (juce::Graphics&, juce::Rectangle<float>,
-                    const std::array<std::array<int, 3>, 16>*,
+                    const std::array<std::array<int, 6>, 16>*,
                     const std::array<bool, 16>*,
-                    const std::array<std::array<bool, 3>, 16>*,
-                    const std::array<int, 16>*, int, int,
-                    SheetTrainer::Clef);
+                    const std::array<std::array<bool, 6>, 16>*,
+                    const std::array<int, 16>*,
+                    const std::array<std::array<SheetTrainer::Clef, 6>, 16>*,
+                    int, int, SheetTrainer::Clef);
+
+    void drawStaffLayer (juce::Graphics&, float bottomLineY, float ls,
+                         float staffL, float staffR, float notesStart, float barWidth, int numBars,
+                         SheetTrainer::Clef layerClef,
+                         const std::array<std::array<int, 6>, 16>*,
+                         const std::array<bool, 16>*,
+                         const std::array<std::array<bool, 6>, 16>*,
+                         const std::array<int, 16>*,
+                         const std::array<std::array<SheetTrainer::Clef, 6>, 16>*,
+                         int currentIndex);
+
+    SheetTrainer::Clef selectedClef() const
+    {
+        int id = clefSelector.getSelectedId();
+        if (id == 2) return SheetTrainer::Clef::Bass;
+        if (id == 3) return SheetTrainer::Clef::Grand;
+        return SheetTrainer::Clef::Treble;
+    }
 
     DanielsPianoHelperProcessor& getProcessor()
     {
